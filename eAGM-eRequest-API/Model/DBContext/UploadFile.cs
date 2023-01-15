@@ -6,6 +6,7 @@ namespace Models.DBContext
     {
         [Key]
         public Guid ID { get; set; }
+        public string HolderID { get; set; }
         public string FileName { get; set; }
         public string ContentType { get; set; }
         public byte[] FileContent { get; set; }

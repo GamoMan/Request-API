@@ -1,4 +1,5 @@
 ﻿using eAGM_eRequest_API.Middleware;
+using eAGM_eRequest_API.Model;
 using eAGM_eRequest_API.Response;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -336,9 +337,9 @@ namespace eAGM_eRequest_API.Controllers
         [AuthorizeToken]
         [HttpPost]
         [Route("/upload-files")]
-        public async Task<IActionResult> UploadFiles(IFormFile[] files)
+        public async Task<IActionResult> UploadFiles([FromForm] UploadDocuments documents)
         {
-            if (files == null || files.Length == 0)
+            if (documents.files == null || documents.files.Length == 0)
             {
                 if (_env.IsDevelopment())
                 {
@@ -351,7 +352,7 @@ namespace eAGM_eRequest_API.Controllers
             {
                 try
                 {
-                    foreach (var file in files)
+                    foreach (var file in documents.files)
                     {
                         // Ensure the file is not empty
                         if (file.Length == 0)
@@ -395,6 +396,7 @@ namespace eAGM_eRequest_API.Controllers
                         // Create a new FileModel object and set its properties
                         var fileModel = new UploadFile();
                         fileModel.ID = Guid.NewGuid();
+                        fileModel.HolderID = documents.holderid;
                         fileModel.FileName = file.FileName;
                         fileModel.ContentType = file.ContentType;
                         fileModel.CreatedDate = DateTime.Now;

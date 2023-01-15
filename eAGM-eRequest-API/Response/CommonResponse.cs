@@ -1,4 +1,4 @@
-﻿namespace eAGM_eRequest_API.Model
+﻿namespace eAGM_eRequest_API.Response
 {
     public class CaptchaResponse
     {

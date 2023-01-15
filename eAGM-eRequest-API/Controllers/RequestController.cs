@@ -1,12 +1,11 @@
 ﻿using eAGM_eRequest_API.Middleware;
-using eAGM_eRequest_API.Model;
+using eAGM_eRequest_API.Response;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
 using Models.Constants;
-using Models.JsonResponse;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IdentityModel.Tokens.Jwt;
@@ -26,6 +25,9 @@ namespace eAGM_eRequest_API.Controllers
 
         private readonly IConfiguration _configuration;
         private readonly IDistributedCache _cache;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly HttpClient _client,_client2;
+
 
         private const int CaptchaLength = 6;
         private const int CaptchaWidth = 130;
@@ -36,12 +38,15 @@ namespace eAGM_eRequest_API.Controllers
 
         
 
-        public RequestController(IWebHostEnvironment env,ILogger<RequestController> logger, IDistributedCache cache, IConfiguration config)
+        public RequestController(IWebHostEnvironment env,ILogger<RequestController> logger, IDistributedCache cache, IConfiguration config, IHttpClientFactory httpClientFactory)
         {
             _logger = logger;
             _env = env;
             _cache = cache;
             _configuration = config;
+            _httpClientFactory = httpClientFactory;
+            _client = _httpClientFactory.CreateClient("externalapi");
+            _client2 = _httpClientFactory.CreateClient("internalapi");
         }
 
         [HttpGet]
@@ -195,15 +200,16 @@ namespace eAGM_eRequest_API.Controllers
                 if (rg.IsMatch(mobileno))
                 {
                     string url = _configuration["ServiceOption:route:otp_request"];
-                    HttpClient client = new HttpClient();
-                    client.BaseAddress = new Uri(_configuration["ServiceOption:base_url"]);
-                    HttpResponseMessage response = await client.GetAsync(url + $"/?Mobile={mobileno}");
+                    //HttpClient client = new HttpClient();
+                    //client.BaseAddress = new Uri(_configuration["ServiceOption:base_url"]);
+                    HttpResponseMessage response = await _client.GetAsync(url + $"/?Mobile={mobileno}");
                     response.EnsureSuccessStatusCode();
                     var data = await response.Content.ReadAsStringAsync();
 
                     return Ok(ResponseModel<GetOTPResponse>.Success(new GetOTPResponse()
                     { data = data }, code: ResponseDesc.RES_CODE_SUCCESS, description: ResponseDesc.RES_DESC_SUCCESS));
-                } else
+                }
+                else
                 {
                     if (_env.IsDevelopment())
                     {
@@ -212,7 +218,102 @@ namespace eAGM_eRequest_API.Controllers
 
                     return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_MODEL_INVALID));
                 }
-            } catch(Exception ex)
+            }
+            catch (Exception ex)
+            {
+                var message = $"[{this.GetType().Name}]  GetOTP exception " + ex.Message;
+                _logger.LogError(ex, message);
+
+                if (_env.IsDevelopment())
+                {
+                    return StatusCode(StatusCodes.Status500InternalServerError, ResponseModel<dynamic>.Error(ResponseDesc.RES_CODE_EX_ERROR, ResponseDesc.RES_DESC_EX_ERROR));
+                }
+
+                return StatusCode(StatusCodes.Status500InternalServerError, ResponseModel<dynamic>.Error(ResponseDesc.RES_CODE_EX_ERROR));
+            }
+        }
+
+        [Authorize(Roles = "Requester")]
+        [AuthorizeToken]
+        [HttpPost]
+        [Route("/otp2/{mobile-no}")]
+        public async Task<IActionResult> GetOTP2([FromRoute(Name = "mobile-no")] string mobileno)
+        {
+            Regex rg = new Regex("^(0[689]{1})+([0-9]{8})+$");
+            // full validation and check before saving
+            //...
+            try
+            {
+                if (rg.IsMatch(mobileno))
+                {
+                    string url = _configuration["ServiceOption:route:otp_request"];
+                    //HttpClient client = new HttpClient();
+                    //client.BaseAddress = new Uri(_configuration["ServiceOption:base_url"]);
+                    HttpResponseMessage response = await _client2.GetAsync(url + $"/?Mobile={mobileno}");
+                    response.EnsureSuccessStatusCode();
+                    var data = await response.Content.ReadAsStringAsync();
+
+                    return Ok(ResponseModel<GetOTPResponse>.Success(new GetOTPResponse()
+                    { data = data }, code: ResponseDesc.RES_CODE_SUCCESS, description: ResponseDesc.RES_DESC_SUCCESS));
+                }
+                else
+                {
+                    if (_env.IsDevelopment())
+                    {
+                        return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_MODEL_INVALID, description: ResponseDesc.RES_DESC_MODEL_INVALID));
+                    }
+
+                    return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_MODEL_INVALID));
+                }
+            }
+            catch (Exception ex)
+            {
+                var message = $"[{this.GetType().Name}]  GetOTP exception " + ex.Message;
+                _logger.LogError(ex, message);
+
+                if (_env.IsDevelopment())
+                {
+                    return StatusCode(StatusCodes.Status500InternalServerError, ResponseModel<dynamic>.Error(ResponseDesc.RES_CODE_EX_ERROR, ResponseDesc.RES_DESC_EX_ERROR));
+                }
+
+                return StatusCode(StatusCodes.Status500InternalServerError, ResponseModel<dynamic>.Error(ResponseDesc.RES_CODE_EX_ERROR));
+            }
+        }
+
+        [Authorize(Roles = "Requester")]
+        [AuthorizeToken]
+        [HttpPost]
+        [Route("/otp/{mobile-no}/verify")]
+        public async Task<IActionResult> VerifyOTP([FromRoute(Name = "mobile-no")] string mobileno)
+        {
+            Regex rg = new Regex("^(0[689]{1})+([0-9]{8})+$");
+            // full validation and check before saving
+            //...
+            try
+            {
+                if (rg.IsMatch(mobileno))
+                {
+                    string url = _configuration["ServiceOption:route:otp_verify"];
+                    //HttpClient client = new HttpClient();
+                    //client.BaseAddress = new Uri(_configuration["ServiceOption:base_url"]);
+                    HttpResponseMessage response = await _client.GetAsync(url + $"/?Mobile={mobileno}");
+                    response.EnsureSuccessStatusCode();
+                    var data = await response.Content.ReadAsStringAsync();
+
+                    return Ok(ResponseModel<GetOTPResponse>.Success(new GetOTPResponse()
+                    { data = data }, code: ResponseDesc.RES_CODE_SUCCESS, description: ResponseDesc.RES_DESC_SUCCESS));
+                }
+                else
+                {
+                    if (_env.IsDevelopment())
+                    {
+                        return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_MODEL_INVALID, description: ResponseDesc.RES_DESC_MODEL_INVALID));
+                    }
+
+                    return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_MODEL_INVALID));
+                }
+            }
+            catch (Exception ex)
             {
                 var message = $"[{this.GetType().Name}]  GetOTP exception " + ex.Message;
                 _logger.LogError(ex, message);

@@ -1,6 +1,6 @@
 ﻿using Models.Constants;
 
-namespace Models.JsonResponse
+namespace eAGM_eRequest_API.Response
 {
     public class ResponseModel<TResult>
     {
@@ -8,20 +8,20 @@ namespace Models.JsonResponse
         public string? Code { get; set; } = null;
         public string? Description { get; set; } = null;
 
-        public TResult? Data { get; set; } = default(TResult);
+        public TResult? Data { get; set; } = default;
 
-        public ResponseModel(string? result, TResult? data = default(TResult), string? code = null, string? description = null)
+        public ResponseModel(string? result, TResult? data = default, string? code = null, string? description = null)
         {
-            this.Result = result;
-            this.Data = data;
-            this.Code = code;
-            this.Description = description;
+            Result = result;
+            Data = data;
+            Code = code;
+            Description = description;
         }
 
-        public ResponseModel(ResponseStatus result, TResult? data = default(TResult), string? code = null, string? description = null)
+        public ResponseModel(ResponseStatus result, TResult? data = default, string? code = null, string? description = null)
             : this(result.ToString(), data, code, description) { }
 
-        public static ResponseModel<TResult> Success(TResult? data = default(TResult), string? code = null, string? description = null)
+        public static ResponseModel<TResult> Success(TResult? data = default, string? code = null, string? description = null)
         {
             return new ResponseModel<TResult>(ResponseStatus.Success, data, code, description);
         }

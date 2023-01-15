@@ -48,8 +48,8 @@ builder.Services.AddAuthentication(option =>
 #endregion
 
 // Add services to the container.
-
 builder.Services.AddControllers();
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(option =>
@@ -90,6 +90,17 @@ builder.Services.AddCors(options =>
                                 .AllowAnyMethod();
                       });
 });
+
+builder.Services.AddHttpClient("externalapi", c =>
+{
+    c.BaseAddress = new Uri(builder.Configuration["ServiceOption:base_url"]);
+});
+builder.Services.AddHttpClient("internalapi", c =>
+{
+    c.BaseAddress = new Uri(builder.Configuration["ServiceOption:base_url2"]);
+});
+
+/////////////////////////////////////////////////////////////////////////////
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

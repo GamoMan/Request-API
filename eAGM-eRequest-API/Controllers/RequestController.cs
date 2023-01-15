@@ -249,7 +249,7 @@ namespace eAGM_eRequest_API.Controllers
                     string url = _configuration["ServiceOption:route:otp_request"];
                     //HttpClient client = new HttpClient();
                     //client.BaseAddress = new Uri(_configuration["ServiceOption:base_url"]);
-                    HttpResponseMessage response = await _client2.GetAsync(url + $"/?Mobile={mobileno}");
+                    HttpResponseMessage response = await _client2.GetAsync(url + $"?Mobile={mobileno}");
                     response.EnsureSuccessStatusCode();
                     var data = await response.Content.ReadAsStringAsync();
 
@@ -296,7 +296,7 @@ namespace eAGM_eRequest_API.Controllers
                     string url = _configuration["ServiceOption:route:otp_verify"];
                     //HttpClient client = new HttpClient();
                     //client.BaseAddress = new Uri(_configuration["ServiceOption:base_url"]);
-                    HttpResponseMessage response = await _client.GetAsync(url + $"/?Mobile={mobileno}");
+                    HttpResponseMessage response = await _client.GetAsync(url + $"?Mobile={mobileno}");
                     response.EnsureSuccessStatusCode();
                     var data = await response.Content.ReadAsStringAsync();
 

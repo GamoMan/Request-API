@@ -3,9 +3,12 @@ using eAGM_eRequest_API.Response;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
 using Models.Constants;
+using Models.DBContext;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IdentityModel.Tokens.Jwt;
@@ -36,14 +39,16 @@ namespace eAGM_eRequest_API.Controllers
         private const int NoiseSize = 15;
         private readonly Random _random = new Random();
 
-        
 
-        public RequestController(IWebHostEnvironment env,ILogger<RequestController> logger, IDistributedCache cache, IConfiguration config, IHttpClientFactory httpClientFactory)
+        private readonly eAGM_RequestContext _context;
+
+        public RequestController(IWebHostEnvironment env,ILogger<RequestController> logger, IDistributedCache cache, IConfiguration config, IHttpClientFactory httpClientFactory, eAGM_RequestContext context)
         {
             _logger = logger;
             _env = env;
             _cache = cache;
             _configuration = config;
+            _context = context;
             _httpClientFactory = httpClientFactory;
             _client = _httpClientFactory.CreateClient("externalapi");
             _client2 = _httpClientFactory.CreateClient("internalapi");
@@ -330,47 +335,92 @@ namespace eAGM_eRequest_API.Controllers
         [Authorize(Roles = "Requester")]
         [AuthorizeToken]
         [HttpPost]
-        [Route("/files/upload")]
+        [Route("/upload-files")]
         public async Task<IActionResult> UploadFiles(IFormFile[] files)
         {
-            long size = files.Sum(f => f.Length);
-
-            // full validation and check before saving
-            //...
-            try
+            if (files == null || files.Length == 0)
             {
-                //save the files to the database
-                using (var connection = new SqlConnection("your_connection_string"))
-                {
-                    connection.Open();
-                    foreach (var file in files)
-                    {
-                        var fileData = new byte[file.Length];
-                        using (var stream = file.OpenReadStream())
-                        {
-                            await stream.ReadAsync(fileData, 0, (int)file.Length);
-                        }
-                        var query = "INSERT INTO files (name, data) VALUES (@name, @data)";
-                        using (var command = new SqlCommand(query, connection))
-                        {
-                            command.Parameters.AddWithValue("@name", file.FileName);
-                            command.Parameters.AddWithValue("@data", fileData);
-                            await command.ExecuteNonQueryAsync();
-                        }
-                    }
-                }
-                return Ok(ResponseModel<FileUploadResponse>.Success(new FileUploadResponse() { message = "Files uploaded successfully" }, code: ResponseDesc.RES_CODE_SUCCESS, description: ResponseDesc.RES_DESC_SUCCESS)); ;
-            } catch(Exception ex)
-            {
-                var message = $"[{this.GetType().Name}]  UploadFiles exception " + ex.Message;
-                _logger.LogError(ex, message);
-
                 if (_env.IsDevelopment())
                 {
-                    return StatusCode(StatusCodes.Status500InternalServerError, ResponseModel<dynamic>.Error(ResponseDesc.RES_CODE_GENERAL_ERROR, ResponseDesc.RES_DESC_GENERAL_ERROR));
+                    return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_MODEL_INVALID, description: ResponseDesc.RES_DESC_MODEL_INVALID));
                 }
 
-                return StatusCode(StatusCodes.Status500InternalServerError, ResponseModel<dynamic>.Error(ResponseDesc.RES_CODE_GENERAL_ERROR));
+                return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_MODEL_INVALID));
+            }
+            using (IDbContextTransaction transaction = _context.Database.BeginTransaction())
+            {
+                try
+                {
+                    foreach (var file in files)
+                    {
+                        // Ensure the file is not empty
+                        if (file.Length == 0)
+                        {
+                            if (_env.IsDevelopment())
+                            {
+                                return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_FILE_EMPTY, description: ResponseDesc.RES_DESC_FILE_EMPTY));
+                            }
+
+                            return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_FILE_EMPTY));
+                        }
+
+                        // Ensure the file is less than 1 MB
+                        if (file.Length > 1 * 1024 * 1024)
+                        {
+                            if (_env.IsDevelopment())
+                            {
+                                return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_FILESIZE_INVALID, description: ResponseDesc.RES_DESC_FILESIZE_INVALID));
+                            }
+
+                            return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_FILESIZE_INVALID));
+                        }
+
+                        // Read the file content into a byte array
+                        byte[] fileContent;
+                        using (var stream = new MemoryStream())
+                        {
+                            await file.CopyToAsync(stream);
+                            fileContent = stream.ToArray();
+                        }
+
+                        if (!VerifyFileHeader(fileContent))
+                        {
+                            if (_env.IsDevelopment())
+                            {
+                                return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_FILETYPE_INVALID, description: ResponseDesc.RES_DESC_FILETYPE_INVALID));
+                            }
+
+                            return StatusCode(StatusCodes.Status401Unauthorized, ResponseModel<dynamic>.Error(code: ResponseDesc.RES_CODE_FILETYPE_INVALID));
+                        }
+                        // Create a new FileModel object and set its properties
+                        var fileModel = new UploadFile();
+                        fileModel.ID = Guid.NewGuid();
+                        fileModel.FileName = file.FileName;
+                        fileModel.ContentType = file.ContentType;
+                        fileModel.CreatedDate = DateTime.Now;
+                        fileModel.FileContent = fileContent;
+                        // Add the FileModel object to the context
+                        _context.UploadFile.Add(fileModel);
+                        // Save the changes to the database
+                    }
+                    await _context.SaveChangesAsync();
+                    transaction.Commit();
+
+                    return Ok(ResponseModel<FileUploadResponse>.Success(new FileUploadResponse() { message = "Files uploaded successfully" }, code: ResponseDesc.RES_CODE_SUCCESS, description: ResponseDesc.RES_DESC_SUCCESS)); ;
+                } 
+                catch (Exception ex)
+                {
+                    transaction.Rollback();
+                    var message = $"[{this.GetType().Name}]  UploadFiles exception " + ex.Message;
+                    _logger.LogError(ex, message);
+
+                    if (_env.IsDevelopment())
+                    {
+                        return StatusCode(StatusCodes.Status500InternalServerError, ResponseModel<dynamic>.Error(ResponseDesc.RES_CODE_GENERAL_ERROR, ResponseDesc.RES_DESC_GENERAL_ERROR));
+                    }
+
+                    return StatusCode(StatusCodes.Status500InternalServerError, ResponseModel<dynamic>.Error(ResponseDesc.RES_CODE_GENERAL_ERROR));
+                }
             }
         }
         [Authorize(Roles = "Requester")]
@@ -465,6 +515,27 @@ namespace eAGM_eRequest_API.Controllers
             // Serialize the JWT
             var jwtHandler = new JwtSecurityTokenHandler();
             return jwtHandler.WriteToken(jwt);
+        }
+
+        private bool VerifyFileHeader(byte[] fileContent)
+        {
+            // check the file header
+            if (fileContent[0] == 0xFF && fileContent[1] == 0xD8 && fileContent[2] == 0xFF)
+            {
+                // file is a JPEG
+                return true;
+            }
+            else if (fileContent[0] == 0x89 && fileContent[1] == 0x50 && fileContent[2] == 0x4E && fileContent[3] == 0x47 && fileContent[4] == 0x0D && fileContent[5] == 0x0A && fileContent[6] == 0x1A && fileContent[7] == 0x0A)
+            {
+                // file is a PNG
+                return true;
+            }
+            else if (fileContent[0] == 0x25 && fileContent[1] == 0x50 && fileContent[2] == 0x44 && fileContent[3] == 0x46 && fileContent[4] == 0x2D)
+            {
+                // file is a PDF
+                return true;
+            }
+            return false;
         }
         #endregion Library
     }

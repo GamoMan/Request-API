@@ -1,5 +1,4 @@
-﻿using eAGM_eRequest_API.Model.DBContext;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 
 namespace Models.DBContext
 {
@@ -13,11 +12,10 @@ namespace Models.DBContext
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
-            builder.Entity<FileUploadModel>()
-                   .Property(c => c.CreatedDate)
-                   .HasColumnType("datetime");
+            builder.Entity<UploadFile>();
 
         }
-        public DbSet<FileUploadModel> FileUploadModel { get; set; }
+ 
+        public DbSet<UploadFile> UploadFile { get; set; }
     }
 }

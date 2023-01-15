@@ -33,6 +33,15 @@
         public const string RES_CODE_REQUEST_INVALID = "2004";
         public const string RES_DESC_REQUEST_INVALID = "model request invalid";
 
+        public const string RES_CODE_FILE_EMPTY = "2005";
+        public const string RES_DESC_FILE_EMPTY = "An empty file was received";
+
+        public const string RES_CODE_FILESIZE_INVALID = "2006";
+        public const string RES_DESC_FILESIZE_INVALID = "File exceeds maximum size of 1 MB";
+
+        public const string RES_CODE_FILETYPE_INVALID = "2007";
+        public const string RES_DESC_FILETYPE_INVALID = "File extension is not allow";
+
         public const string RES_CODE_EX_ERROR = "8001";
         public const string RES_DESC_EX_ERROR = "external api return error";
     }
